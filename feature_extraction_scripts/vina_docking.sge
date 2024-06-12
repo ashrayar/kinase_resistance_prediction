@@ -1,0 +1,53 @@
+#!/bin/bash 
+#$ -N vina_dock_new_grid
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-514
+#$ -pe smp 2
+##$ -tc 12
+#$ -l mem_free=12G
+#$ -l h_rt=01:00:00
+#$ -R yes
+
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_outputs/docking_failed
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles.csv
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_a458.csv
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/docking_retry.csv
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_docking_dmso_remaining.csv
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+export PATH="/wynton/home/fraserlab/aravikumar/miniconda3/bin:$PATH"
+source activate umol
+export OMP_NUM_THREADS=1
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+LIGAND_SMILES=`echo $my_line | cut -d "," -f 3`
+
+cd /wynton/home/fraserlab/aravikumar/software
+
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+echo $ID,$LIGAND
+if [ -s "${OUTDIR}${ID}_tethered_ligand.sdf" ]; then
+	if [ -f "${OUTDIR}${ID}_docked_rigid_new_grid.pdbqt" ]; then
+		echo $ID,$LIGAND >> ${BASEDIR}/dummy.txt
+	else
+		#grep ATOM ${OUTDIR}${ID}'_relaxed_complex.pdb' > ${OUTDIR}${ID}_relaxed_protein.pdb
+		#openbabel/bin/obabel ${OUTDIR}${ID}_relaxed_protein.pdb -xr -xn -xp -O ${OUTDIR}${ID}_relaxed_protein.pdbqt
+		#openbabel/bin/obabel -isdf ${OUTDIR}${ID}_tethered_ligand.sdf -xr -O ${OUTDIR}${ID}_tethered_ligand_rigid.pdbqt 
+		#echo "Converted to pdbqt"
+		#python /wynton/home/fraserlab/aravikumar/dms/fix_rigid_pdbqt_file.py $ID $LIGAND
+		cd /wynton/home/fraserlab/aravikumar/software/autodock_vina_1_1_2_linux_x86/bin
+		./vina --config /wynton/home/fraserlab/aravikumar/software/vina_conf_new.txt --receptor ${OUTDIR}${ID}_relaxed_protein.pdbqt --ligand ${OUTDIR}${ID}_tethered_ligand_rigid_fixed.pdbqt --out ${OUTDIR}${ID}_docked_rigid_new_grid.pdbqt --log ${OUTDIR}${ID}_dock_new_grid.log
+		echo "Docking done"
+
+		if [ -f "${OUTDIR}${ID}_docked_rigid_new_grid.pdbqt" ]; then
+			echo $ID,$LIGAND >> ${BASEDIR}/docking_done_retry
+		else
+			echo $ID,$LIGAND >> ${BASEDIR}/docking_failed_retry
+		fi
+	fi
+else
+	echo $ID,$LIGAND,$LIGAND_SMILES >> ${BASEDIR}/tethering_failed_all
+fi

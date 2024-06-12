@@ -1,0 +1,50 @@
+#!/bin/bash 
+#$ -N umol_relax
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-175
+#$ -pe smp 4
+##$ -tc 12
+#$ -l mem_free=12G
+#$ -l h_rt=3:00:00
+#$ -R yes
+
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_relax_inputs_remaining.csv
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_a458.csv
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_relaxation_a458_remaining.csv
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+#export PATH="/wynton/home/fraserlab/aravikumar/miniconda3/bin:$PATH"
+#source activate umol
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+LIGAND_SMILES=`echo $my_line | cut -d "," -f 3`
+
+cd ~/Umol/
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+#relax the protein
+PRED_PROTEIN=${OUTDIR}${ID}'_pred_protein.pdb'
+PRED_LIGAND=${OUTDIR}${ID}'_pred_ligand.sdf'
+RESTRAINTS="CA+ligand" # or "protein"
+
+if [ -f "$PRED_PROTEIN" ]; then
+	export PATH="/wynton/home/fraserlab/aravikumar/miniforge3/bin:$PATH"
+	source activate openffenv
+	export OPENMM_CPU_THREADS=4
+	python3 src/relax/openmm_relax.py --input_pdb $PRED_PROTEIN --ligand_sdf $PRED_LIGAND --file_name $ID --restraint_type $RESTRAINTS --outdir $OUTDIR
+	#mamba deactivate openffenv
+
+	RAW_COMPLEX=${OUTDIR}${ID}'_pred_raw.pdb'
+	RELAXED_COMPLEX=${OUTDIR}${ID}'_relaxed_complex.pdb'
+
+	#python3 src/relax/add_plddt_to_relaxed.py  --raw_complex $RAW_COMPLEX --relaxed_complex $RELAXED_COMPLEX --outdir $OUTDIR
+	if [ -f "$RELAXED_COMPLEX" ]; then
+		echo ${ID},${LIGAND} >> ${BASEDIR}/relaxation_done
+	else
+		echo ${ID},${LIGAND} >> ${BASEDIR}/relaxation_failed
+	fi
+else
+	echo ${ID},${LIGAND}${LIGAND_SMILES} >> ${BASEDIR}/prediction_pending
+fi

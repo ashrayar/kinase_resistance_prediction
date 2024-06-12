@@ -1,0 +1,26 @@
+#!/bin/bash 
+#$ -N p2rank_run
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-51
+#$ -pe smp 1
+#$ -l mem_free=12G
+#$ -l h_rt=00:20:00
+#$ -R yes
+
+export PATH="/wynton/home/fraserlab/aravikumar/miniforge3/bin:$PATH"
+export OMP_NUM_THREADS=1
+source activate dummybasenv
+
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_outputs/p2rank_pending
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+echo $ID,$LIGAND
+cd $OUTDIR
+/wynton/home/fraserlab/aravikumar/software/p2rank_2.4.1/prank predict -f ${ID}_docked_complex.pdb -c alphafold -o ${OUTDIR}/${ID}_${LIGAND}_p2rank

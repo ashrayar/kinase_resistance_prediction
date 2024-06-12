@@ -1,0 +1,49 @@
+#!/bin/bash 
+#$ -N umol_predict
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-20
+#$ -pe smp 4
+##$ -tc 12
+#$ -l mem_free=12G
+#$ -l h_rt=2:00:00
+#$ -R yes
+
+
+export OMP_NUM_THREADS=1
+
+export PATH="/wynton/home/fraserlab/aravikumar/miniconda3/bin:$PATH"
+source activate umol
+cd ~/Umol/
+
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_dmso_remaining.csv
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+LIGAND_SMILES=`echo $my_line | cut -d "," -f 3`
+
+
+mkdir ${BASEDIR}/${ID}/${LIGAND}
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+MSA_FEATS=${BASEDIR}/${ID}/msa_features.pkl
+LIGAND_FEATS=${BASEDIR}/${LIGAND}_inp_features.pkl
+POCKET_INDICES=/wynton/home/fraserlab/aravikumar/dms/${LIGAND}_pocket_indices.npy
+PARAMS=./data/params/params40000.npy
+NUM_RECYCLES=3
+echo $ID $LIGAND $LIGAND_SMILES
+python3 ./src/predict.py --msa_features  $MSA_FEATS --ligand_features $LIGAND_FEATS --id $ID --ckpt_params $PARAMS --target_pos $POCKET_INDICES --num_recycles $NUM_RECYCLES --outdir $OUTDIR
+
+wait
+
+RAW_PDB=${OUTDIR}${ID}'_pred_raw.pdb'
+echo "Prediction complete"
+python3 ./src/relax/align_ligand_conformer.py --pred_pdb $RAW_PDB --ligand_smiles $LIGAND_SMILES --outdir $OUTDIR
+#mv ${OUTDIR}${ID}_pred_ligand.sdf ${OUTDIR}${ID}_${LIGAND}_pred_ligand.sdf
+#mv ${OUTDIR}conformer_dmat_err.csv ${OUTDIR}${ID}_${LIGAND}_conformer_dmat_err.csv
+grep ATOM ${OUTDIR}${ID}'_pred_raw.pdb' > ${OUTDIR}${ID}_pred_protein.pdb
+echo "Ligand alignment done"
+

@@ -1,0 +1,48 @@
+#!/bin/bash 
+#$ -N tether_ligand
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+##$ -t 1-49077
+#$ -t 1-5453
+#$ -pe smp 1
+##$ -tc 12
+#$ -l mem_free=12G
+#$ -l h_rt=00:30:00
+#$ -R yes
+
+
+export OMP_NUM_THREADS=1
+
+export PATH="/wynton/home/fraserlab/aravikumar/miniconda3/bin:$PATH"
+source activate umol
+cd ~/Umol/
+
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_gle_only.csv
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_a458.csv
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+LIGAND_SMILES=`echo $my_line | cut -d "," -f 3`
+
+
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+echo $ID,$LIGAND
+grep "HETATM" ${OUTDIR}${ID}_relaxed_complex.pdb > ${OUTDIR}${ID}_relaxed_ligand.pdb
+python /wynton/home/fraserlab/aravikumar/dms/convert_pdb_to_sdf.py $ID $LIGAND $LIGAND_SMILES
+wait
+echo "conversion done"
+#python /wynton/home/fraserlab/aravikumar/software/rdkit_tethered_minimization/tetheredMinimization.py ${BASEDIR}/${LIGAND}_reference.sdf ${OUTDIR}${ID}_relaxed_ligand.sdf ${OUTDIR}${ID}_tethered_ligand.sdf ${OUTDIR}free.sdf
+#if [ -f "${OUTDIR}${ID}_tethered_ligand.sdf" ]; then
+#	rm ${OUTDIR}${ID}_tethered_ligand.sdf
+#fi
+python /wynton/home/fraserlab/aravikumar/dms/my_rdkit_tether.py ${BASEDIR}/${LIGAND}_reference.sdf ${OUTDIR}${ID}_relaxed_ligand.sdf ${OUTDIR}${ID}_tethered_ligand.sdf
+echo "tethering done"
+if [ -f "${OUTDIR}${ID}_tethered_ligand.sdf" ]; then
+	echo $ID,$LIGAND >> ${BASEDIR}/tethering_done
+else
+	echo $ID,$LIGAND >> ${BASEDIR}/tethering_failed
+fi

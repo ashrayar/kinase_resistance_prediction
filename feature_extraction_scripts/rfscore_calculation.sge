@@ -1,0 +1,33 @@
+#!/bin/bash 
+#$ -N rfscore
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-9
+#$ -pe smp 1
+
+#$ -l mem_free=12G
+#$ -l h_rt=00:30:00
+#$ -R yes
+
+#umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_outputs/rfscores_failed.csv
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_pred_inputs_with_smiles_a458.csv
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+#export PATH="/wynton/home/fraserlab/aravikumar/miniforge3/bin:$PATH"
+#conda activate dummybasenv
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+echo $ID,$LIGAND
+
+#grep HETATM ${OUTDIR}${ID}'_relaxed_complex.pdb' > ${OUTDIR}${ID}_relaxed_ligand.pdb
+#grep ATOM ${OUTDIR}${ID}'_relaxed_complex.pdb' > ${OUTDIR}${ID}_relaxed_protein.pdb
+if [ -f "${OUTDIR}${ID}_docked_rigid.pdb" ]; then
+	cd /wynton/home/fraserlab/aravikumar/software/rf-score
+	./rf-score-vs --receptor ${OUTDIR}${ID}_relaxed_protein.pdb ${OUTDIR}${ID}_docked_rigid.pdb -n 1 -o csv > ${OUTDIR}${ID}_rfscore_new.csv
+else
+	cd /wynton/home/fraserlab/aravikumar/software/rf-score
+	./rf-score-vs --receptor ${OUTDIR}${ID}_relaxed_protein.pdb ${OUTDIR}${ID}_relaxed_ligand.pdb -n 1 -o csv > ${OUTDIR}${ID}_rfscore_new.csv
+fi

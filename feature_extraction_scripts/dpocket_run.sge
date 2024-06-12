@@ -1,0 +1,26 @@
+#!/bin/bash 
+#$ -N dpocket_run
+#$ -o /wynton/home/fraserlab/aravikumar/dms/umol_outputs/sge_log_files
+#$ -cwd
+#$ -j y  
+#$ -t 1-48573
+#$ -pe smp 1
+#$ -l mem_free=16G
+#$ -l h_rt=00:30:00
+#$ -R yes
+
+export PATH="/wynton/home/fraserlab/aravikumar/miniforge3/bin:$PATH"
+export OMP_NUM_THREADS=1
+source activate dummybasenv
+
+umol_input_file=/wynton/home/fraserlab/aravikumar/dms/umol_outputs/docking_done_no_issues
+
+BASEDIR=/wynton/home/fraserlab/aravikumar/dms/umol_outputs
+
+my_line=$(cat $umol_input_file | head -n $SGE_TASK_ID | tail -n 1)
+ID=`echo $my_line | cut -d "," -f 1`
+LIGAND=`echo $my_line | cut -d "," -f 2`
+OUTDIR=${BASEDIR}/${ID}/${LIGAND}/
+echo $ID,$LIGAND
+cd $OUTDIR
+dpocket -f dpocket_input.txt -o ${ID}_${LIGAND}_pocket_vol
